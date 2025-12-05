@@ -251,3 +251,18 @@ export function interpolateColor(
   const color = gradient.rgbAt(factor);
   return color.toHexString();
 }
+
+/**
+ * Darkens a color by a given percentage (0-100).
+ * @param color The color to darken (hex or name).
+ * @param amount The percentage to darken (0-100).
+ * @returns The darkened color as a hex string.
+ */
+export function darkenColor(color: string, amount: number): string {
+  const resolved = resolveColor(color);
+  if (!resolved) {
+    return color;
+  }
+  // Interpolate towards black to darken
+  return interpolateColor(resolved, 'black', amount / 100);
+}
