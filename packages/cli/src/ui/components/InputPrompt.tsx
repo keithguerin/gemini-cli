@@ -47,7 +47,6 @@ import { StreamingState } from '../types.js';
 import { useMouseClick } from '../hooks/useMouseClick.js';
 import { useMouse, type MouseEvent } from '../contexts/MouseContext.js';
 import { useUIActions } from '../contexts/UIActionsContext.js';
-import { darkenColor } from '../themes/color-utils.js';
 
 /**
  * Returns if the terminal can be trusted to handle paste events atomically
@@ -1014,9 +1013,10 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
       ? (statusColor ?? theme.border.focused)
       : theme.border.default;
 
-  const backgroundColor = isAlternateBuffer
-    ? undefined
-    : darkenColor(borderColor, 75);
+  // Use a fixed ANSI 256 compatible color for background to ensure consistent rendering
+  // across different terminals (like iTerm2).
+  // #303030 is ANSI 256 Index 236.
+  const backgroundColor = isAlternateBuffer ? undefined : '#303030';
 
   return (
     <>
@@ -1037,9 +1037,8 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
         />
       ) : (
         <Box width={mainAreaWidth} flexDirection="row">
-          <Text color={borderColor}>▄</Text>
-          <Text color={backgroundColor}>
-            {'▄'.repeat(Math.max(0, mainAreaWidth - 1))}
+          <Text backgroundColor={backgroundColor} color="black">
+            {'▀'.repeat(mainAreaWidth)}
           </Text>
         </Box>
       )}
@@ -1057,9 +1056,6 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
         alignItems="stretch"
         minHeight={1}
       >
-        {!isAlternateBuffer && (
-          <Box width={1} flexShrink={0} backgroundColor={borderColor} />
-        )}
         <Box
           flexGrow={1}
           flexDirection="row"
@@ -1261,9 +1257,8 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
         />
       ) : (
         <Box width={mainAreaWidth} flexDirection="row">
-          <Text color={borderColor}>▀</Text>
-          <Text color={backgroundColor}>
-            {'▀'.repeat(Math.max(0, mainAreaWidth - 1))}
+          <Text color="black" backgroundColor={backgroundColor}>
+            {'▄'.repeat(mainAreaWidth)}
           </Text>
         </Box>
       )}
