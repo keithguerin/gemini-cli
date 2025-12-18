@@ -49,6 +49,13 @@
           "default": false,
           "type": "boolean"
         },
+        "disableVimCommandMode": {
+          "title": "Disable Vim Command Mode",
+          "description": "Disable Vim command mode",
+          "markdownDescription": "Disable Vim command mode\n\n- Category: `General`\n- Requires restart: `no`\n- Default: `false`",
+          "default": false,
+          "type": "boolean"
+        },
         "disableAutoUpdate": {
           "title": "Disable Auto Update",
           "description": "Disable automatic updates",

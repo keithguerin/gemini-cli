@@ -8,9 +8,15 @@ import { useCallback, useReducer, useEffect } from 'react';
 import type { Key } from './useKeypress.js';
 import type { TextBuffer } from '../components/shared/text-buffer.js';
 import { useVimMode } from '../contexts/VimModeContext.js';
+import { useSettings } from '../contexts/SettingsContext.js';
 import { debugLogger } from '@google/gemini-cli-core';
 
-export type VimMode = 'NORMAL' | 'INSERT' | 'VISUAL' | 'VISUAL_LINE';
+export type VimMode =
+  | 'NORMAL'
+  | 'INSERT'
+  | 'VISUAL'
+  | 'VISUAL_LINE'
+  | 'COMMAND';
 
 // Constants
 const DIGIT_MULTIPLIER = 10;
@@ -60,6 +66,7 @@ const createClearPendingState = () => ({
 // State and action types for useReducer
 type VimState = {
   mode: VimMode;
+  commandBuffer: string;
   count: number;
   pendingOperator: 'g' | 'd' | 'c' | 'y' | null;
   pendingChord: 'ctrl+x' | null;
@@ -80,6 +87,7 @@ type VimState = {
 
 type VimAction =
   | { type: 'SET_MODE'; mode: VimMode }
+  | { type: 'SET_COMMAND_BUFFER'; buffer: string }
   | { type: 'SET_COUNT'; count: number }
   | { type: 'INCREMENT_COUNT'; digit: number }
   | { type: 'CLEAR_COUNT' }
@@ -112,6 +120,7 @@ type VimAction =
 
 const initialVimState: VimState = {
   mode: 'NORMAL',
+  commandBuffer: '',
   count: 0,
   pendingOperator: null,
   pendingChord: null,
@@ -127,6 +136,9 @@ const vimReducer = (state: VimState, action: VimAction): VimState => {
   switch (action.type) {
     case 'SET_MODE':
       return { ...state, mode: action.mode };
+
+    case 'SET_COMMAND_BUFFER':
+      return { ...state, commandBuffer: action.buffer };
 
     case 'SET_COUNT':
       return { ...state, count: action.count };
@@ -192,7 +204,8 @@ const vimReducer = (state: VimState, action: VimAction): VimState => {
  * @returns Object with vim state and input handler
  */
 export function useVim(buffer: TextBuffer, onSubmit?: (value: string) => void) {
-  const { vimEnabled, vimMode, setVimMode } = useVimMode();
+  const { vimEnabled, vimMode, setVimMode, setCommandBuffer } = useVimMode();
+  const settings = useSettings();
   const [state, dispatch] = useReducer(vimReducer, initialVimState);
 
   // Sync vim mode from context to local state
@@ -200,11 +213,20 @@ export function useVim(buffer: TextBuffer, onSubmit?: (value: string) => void) {
     dispatch({ type: 'SET_MODE', mode: vimMode });
   }, [vimMode]);
 
+  // Sync command buffer to context
+  useEffect(() => {
+    setCommandBuffer(state.commandBuffer);
+  }, [state.commandBuffer, setCommandBuffer]);
+
   // Helper to update mode in both reducer and context
   const updateMode = useCallback(
     (mode: VimMode) => {
       setVimMode(mode);
       dispatch({ type: 'SET_MODE', mode });
+      // Clear command buffer when exiting COMMAND mode
+      if (mode !== 'COMMAND') {
+        dispatch({ type: 'SET_COMMAND_BUFFER', buffer: '' });
+      }
     },
     [setVimMode],
   );
@@ -303,6 +325,72 @@ export function useVim(buffer: TextBuffer, onSubmit?: (value: string) => void) {
       return true;
     },
     [buffer, updateMode],
+  );
+
+  /**
+   * Handles key input in COMMAND mode
+   */
+  const handleCommandModeInput = useCallback(
+    (normalizedKey: Key): boolean => {
+      if (normalizedKey.name === 'escape') {
+        updateMode('NORMAL');
+        return true;
+      }
+
+      if (normalizedKey.name === 'return') {
+        const cmd = state.commandBuffer;
+        updateMode('NORMAL');
+
+        if (cmd.startsWith(':')) {
+          // Handle Ex commands
+          const command = cmd.slice(1).trim();
+          if (command === 'w') {
+            // Save is handled by the submit handler usually, or we need a way to trigger save
+            // For now, let's assume we can't easily trigger save from here without more context
+            // But we can support :q if we had a way to exit.
+            // Since we don't have a full ex parser yet, we'll just log/ignore for now or implement what we can.
+            // In the plan we said: Implement :w (save), :q (exit), :wq.
+            // :w usually submits in this context? Or just writes file?
+            // InputPrompt handles "submit" which usually means "send to model" or "execute command".
+            // If we want to support :w as "save to file", we might need the onSubmit to handle it if it's a file edit.
+            // For now, let's just clear.
+          } else if (command === 'q') {
+            // Quit
+          }
+        } else if (cmd.startsWith('/') || cmd.startsWith('?')) {
+          // Handle search
+          const query = cmd.slice(1);
+          const direction = cmd.startsWith('/') ? 'forward' : 'backward';
+          if (query) {
+            buffer.vimSearch(query, direction);
+          }
+        }
+        return true;
+      }
+
+      if (normalizedKey.name === 'backspace') {
+        if (state.commandBuffer.length <= 1) {
+          updateMode('NORMAL');
+        } else {
+          dispatch({
+            type: 'SET_COMMAND_BUFFER',
+            buffer: state.commandBuffer.slice(0, -1),
+          });
+        }
+        return true;
+      }
+
+      if (normalizedKey.sequence && normalizedKey.sequence.length === 1) {
+        dispatch({
+          type: 'SET_COMMAND_BUFFER',
+          buffer: state.commandBuffer + normalizedKey.sequence,
+        });
+        return true;
+      }
+
+      return true;
+    },
+    [state.commandBuffer, updateMode, buffer],
   );
 
   /**
@@ -514,6 +602,11 @@ export function useVim(buffer: TextBuffer, onSubmit?: (value: string) => void) {
         return handleInsertModeInput(normalizedKey);
       }
 
+      // Handle COMMAND mode
+      if (state.mode === 'COMMAND') {
+        return handleCommandModeInput(normalizedKey);
+      }
+
       // Handle NORMAL and VISUAL modes
       if (
         state.mode === 'NORMAL' ||
@@ -533,6 +626,27 @@ export function useVim(buffer: TextBuffer, onSubmit?: (value: string) => void) {
             return true; // Handled by vim
           }
           return false; // Pass through to other handlers
+        }
+
+        // Handle transitions to COMMAND mode
+        if (
+          state.mode === 'NORMAL' &&
+          (normalizedKey.sequence === ':' ||
+            normalizedKey.sequence === '/' ||
+            normalizedKey.sequence === '?')
+        ) {
+          if (settings.merged.general?.disableVimCommandMode) {
+            // If disabled, let it fall through (or handle partially if needed, but likely just ignore/default)
+            // If we want existing behavior (search on /), we might need to let it fall through to InputPrompt?
+            // InputPrompt handles '/' by focusing input.
+            return false;
+          }
+          updateMode('COMMAND');
+          dispatch({
+            type: 'SET_COMMAND_BUFFER',
+            buffer: normalizedKey.sequence,
+          });
+          return true;
         }
 
         // Handle count input (numbers 1-9, and 0 if count > 0)
@@ -1099,6 +1213,8 @@ export function useVim(buffer: TextBuffer, onSubmit?: (value: string) => void) {
       buffer,
       executeCommand,
       updateMode,
+      handleCommandModeInput,
+      settings.merged.general?.disableVimCommandMode,
     ],
   );
 

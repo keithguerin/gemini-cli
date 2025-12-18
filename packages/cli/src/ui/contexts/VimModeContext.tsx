@@ -14,13 +14,20 @@ import {
 import type { LoadedSettings } from '../../config/settings.js';
 import { SettingScope } from '../../config/settings.js';
 
-export type VimMode = 'NORMAL' | 'INSERT' | 'VISUAL' | 'VISUAL_LINE';
+export type VimMode =
+  | 'NORMAL'
+  | 'INSERT'
+  | 'VISUAL'
+  | 'VISUAL_LINE'
+  | 'COMMAND';
 
 interface VimModeContextType {
   vimEnabled: boolean;
   vimMode: VimMode;
+  commandBuffer: string;
   toggleVimEnabled: () => Promise<boolean>;
   setVimMode: (mode: VimMode) => void;
+  setCommandBuffer: (buffer: string) => void;
 }
 
 const VimModeContext = createContext<VimModeContextType | undefined>(undefined);
@@ -37,6 +44,7 @@ export const VimModeProvider = ({
   const [vimMode, setVimMode] = useState<VimMode>(
     initialVimEnabled ? 'NORMAL' : 'INSERT',
   );
+  const [commandBuffer, setCommandBuffer] = useState('');
 
   useEffect(() => {
     // Initialize vimEnabled from settings on mount
@@ -62,8 +70,10 @@ export const VimModeProvider = ({
   const value = {
     vimEnabled,
     vimMode,
+    commandBuffer,
     toggleVimEnabled,
     setVimMode,
+    setCommandBuffer,
   };
 
   return (

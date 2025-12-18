@@ -190,6 +190,15 @@ const SETTINGS_SCHEMA = {
         description: 'Enable Vim keybindings',
         showInDialog: true,
       },
+      disableVimCommandMode: {
+        type: 'boolean',
+        label: 'Disable Vim Command Mode',
+        category: 'General',
+        requiresRestart: false,
+        default: false,
+        description: 'Disable Vim command mode',
+        showInDialog: true,
+      },
       disableAutoUpdate: {
         type: 'boolean',
         label: 'Disable Auto Update',

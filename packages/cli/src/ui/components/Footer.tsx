@@ -24,7 +24,7 @@ export const Footer: React.FC = () => {
   const uiState = useUIState();
   const config = useConfig();
   const settings = useSettings();
-  const { vimEnabled, vimMode } = useVimMode();
+  const { vimEnabled, vimMode, commandBuffer } = useVimMode();
 
   const {
     model,
@@ -70,6 +70,7 @@ export const Footer: React.FC = () => {
   const displayVimMode = vimEnabled ? vimMode : undefined;
 
   const showDebugProfiler = debugMode || isDevelopment;
+  const isCommandMode = vimEnabled && vimMode === 'COMMAND';
 
   return (
     <Box
@@ -85,7 +86,13 @@ export const Footer: React.FC = () => {
           {displayVimMode && (
             <Text color={theme.text.secondary}>[{displayVimMode}] </Text>
           )}
-          {!hideCWD &&
+          {isCommandMode ? (
+            <Box flexDirection="row">
+              <Text color={theme.text.primary}>{commandBuffer}</Text>
+              <Text inverse> </Text>
+            </Box>
+          ) : (
+            !hideCWD &&
             (nightly ? (
               <ThemedGradient>
                 {displayPath}
@@ -98,7 +105,8 @@ export const Footer: React.FC = () => {
                   <Text color={theme.text.secondary}> ({branchName}*)</Text>
                 )}
               </Text>
-            ))}
+            ))
+          )}
           {debugMode && (
             <Text color={theme.status.error}>
               {' ' + (debugMessage || '--debug')}

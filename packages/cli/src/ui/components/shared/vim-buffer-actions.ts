@@ -1043,6 +1043,39 @@ export function handleVimAction(
             }
           }
         }
+      } else {
+        // Backward search logic
+        const currentLine = lines[cursorRow] || '';
+        // Search current line before current char
+        // lastIndexOf searches backwards fromIndex
+        const idx = currentLine.lastIndexOf(query, cursorCol - 1);
+        if (idx !== -1) {
+          foundRow = cursorRow;
+          foundCol = idx;
+        } else {
+          // Search previous lines
+          for (let i = cursorRow - 1; i >= 0; i--) {
+            const line = lines[i];
+            const idx = line.lastIndexOf(query);
+            if (idx !== -1) {
+              foundRow = i;
+              foundCol = idx;
+              break;
+            }
+          }
+          // Wrap around (search from end)
+          if (foundRow === -1) {
+            for (let i = lines.length - 1; i >= cursorRow; i--) {
+              const line = lines[i];
+              const idx = line.lastIndexOf(query);
+              if (idx !== -1 && (i > cursorRow || idx > cursorCol)) {
+                foundRow = i;
+                foundCol = idx;
+                break;
+              }
+            }
+          }
+        }
       }
 
       if (foundRow !== -1) {
@@ -1098,6 +1131,35 @@ export function handleVimAction(
               const line = lines[i];
               const idx = line.indexOf(query);
               if (idx !== -1 && (i < cursorRow || idx < cursorCol)) {
+                foundRow = i;
+                foundCol = idx;
+                break;
+              }
+            }
+          }
+        }
+      } else {
+        // Backward search logic
+        const currentLine = lines[cursorRow] || '';
+        const idx = currentLine.lastIndexOf(query, cursorCol - 1);
+        if (idx !== -1) {
+          foundRow = cursorRow;
+          foundCol = idx;
+        } else {
+          for (let i = cursorRow - 1; i >= 0; i--) {
+            const line = lines[i];
+            const idx = line.lastIndexOf(query);
+            if (idx !== -1) {
+              foundRow = i;
+              foundCol = idx;
+              break;
+            }
+          }
+          if (foundRow === -1) {
+            for (let i = lines.length - 1; i >= cursorRow; i--) {
+              const line = lines[i];
+              const idx = line.lastIndexOf(query);
+              if (idx !== -1 && (i > cursorRow || idx > cursorCol)) {
                 foundRow = i;
                 foundCol = idx;
                 break;
