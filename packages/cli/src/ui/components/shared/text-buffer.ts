@@ -1004,7 +1004,20 @@ export type TextBufferAction =
     }
   | { type: 'vim_yank'; payload: { text: string } }
   | { type: 'vim_yank_selection' }
-  | { type: 'vim_paste'; payload: { direction: 'before' | 'after' } };
+  | { type: 'vim_paste'; payload: { direction: 'before' | 'after' } }
+  | { type: 'vim_replace_char'; payload: { char: string } }
+  | {
+      type: 'vim_find_char';
+      payload: {
+        char: string;
+        direction: 'forward' | 'backward';
+        type: 'inclusive' | 'exclusive';
+      };
+    }
+  | { type: 'vim_move_to_matching_pair' }
+  | { type: 'vim_delete_inner_word'; payload: { count: number } }
+  | { type: 'vim_change_inner_word'; payload: { count: number } }
+  | { type: 'vim_yank_inner_word'; payload: { count: number } };
 
 export interface TextBufferOptions {
   inputFilter?: (text: string) => string;
@@ -1549,6 +1562,12 @@ function textBufferReducerLogic(
     case 'vim_set_selection_anchor':
     case 'vim_clear_selection':
     case 'vim_escape_insert_mode':
+    case 'vim_replace_char':
+    case 'vim_find_char':
+    case 'vim_move_to_matching_pair':
+    case 'vim_delete_inner_word':
+    case 'vim_change_inner_word':
+    case 'vim_yank_inner_word':
       return handleVimAction(state, action as VimAction);
 
     default: {
@@ -1942,6 +1961,37 @@ export function useTextBuffer({
     dispatch({ type: 'vim_paste', payload: { direction } });
   }, []);
 
+  const vimReplaceChar = useCallback((char: string): void => {
+    dispatch({ type: 'vim_replace_char', payload: { char } });
+  }, []);
+
+  const vimFindChar = useCallback(
+    (
+      char: string,
+      direction: 'forward' | 'backward',
+      type: 'inclusive' | 'exclusive',
+    ): void => {
+      dispatch({ type: 'vim_find_char', payload: { char, direction, type } });
+    },
+    [],
+  );
+
+  const vimMoveToMatchingPair = useCallback((): void => {
+    dispatch({ type: 'vim_move_to_matching_pair' });
+  }, []);
+
+  const vimDeleteInnerWord = useCallback((count: number): void => {
+    dispatch({ type: 'vim_delete_inner_word', payload: { count } });
+  }, []);
+
+  const vimChangeInnerWord = useCallback((count: number): void => {
+    dispatch({ type: 'vim_change_inner_word', payload: { count } });
+  }, []);
+
+  const vimYankInnerWord = useCallback((count: number): void => {
+    dispatch({ type: 'vim_yank_inner_word', payload: { count } });
+  }, []);
+
   const openInExternalEditor = useCallback(
     async (opts: { editor?: string } = {}): Promise<void> => {
       const editor =
@@ -2221,9 +2271,16 @@ export function useTextBuffer({
       vimYank,
       vimYankSelection,
       vimPaste,
+      vimReplaceChar,
+      vimFindChar,
+      vimMoveToMatchingPair,
+      vimDeleteInnerWord,
+      vimChangeInnerWord,
+      vimYankInnerWord,
     }),
     [
       lines,
+
       text,
       cursorRow,
       cursorCol,
@@ -2291,9 +2348,16 @@ export function useTextBuffer({
       vimYank,
       vimYankSelection,
       vimPaste,
+      vimReplaceChar,
+      vimFindChar,
+      vimMoveToMatchingPair,
+      vimDeleteInnerWord,
+      vimChangeInnerWord,
+      vimYankInnerWord,
       visualToLogicalMap,
     ],
   );
+
   return returnValue;
 }
 
@@ -2546,4 +2610,32 @@ export interface TextBuffer {
   vimYank: (text: string) => void;
   vimYankSelection: () => void;
   vimPaste: (direction: 'before' | 'after') => void;
+  /**
+   * Replace character at cursor with the given character (vim 'r' command)
+   */
+  vimReplaceChar: (char: string) => void;
+  /**
+   * Find character on the current line (vim 'f/F/t/T' commands)
+   */
+  vimFindChar: (
+    char: string,
+    direction: 'forward' | 'backward',
+    type: 'inclusive' | 'exclusive',
+  ) => void;
+  /**
+   * Move to matching pair (vim '%' command)
+   */
+  vimMoveToMatchingPair: () => void;
+  /**
+   * Delete inner word (vim 'diw' command)
+   */
+  vimDeleteInnerWord: (count: number) => void;
+  /**
+   * Change inner word (vim 'ciw' command)
+   */
+  vimChangeInnerWord: (count: number) => void;
+  /**
+   * Yank inner word (vim 'yiw' command)
+   */
+  vimYankInnerWord: (count: number) => void;
 }

@@ -42,6 +42,19 @@ const CMD_TYPES = {
 const createClearPendingState = () => ({
   count: 0,
   pendingOperator: null as 'g' | 'd' | 'c' | 'y' | null,
+  pendingChord: null as 'ctrl+x' | null,
+  pendingReplace: false,
+  pendingInner: false,
+  pendingFind: null as {
+    char: string;
+    direction: 'forward' | 'backward';
+    type: 'inclusive' | 'exclusive';
+  } | null,
+  lastFind: null as {
+    char: string;
+    direction: 'forward' | 'backward';
+    type: 'inclusive' | 'exclusive';
+  } | null,
 });
 
 // State and action types for useReducer
@@ -49,6 +62,19 @@ type VimState = {
   mode: VimMode;
   count: number;
   pendingOperator: 'g' | 'd' | 'c' | 'y' | null;
+  pendingChord: 'ctrl+x' | null;
+  pendingReplace: boolean;
+  pendingInner: boolean;
+  pendingFind: {
+    char: string;
+    direction: 'forward' | 'backward';
+    type: 'inclusive' | 'exclusive';
+  } | null;
+  lastFind: {
+    char: string;
+    direction: 'forward' | 'backward';
+    type: 'inclusive' | 'exclusive';
+  } | null;
   lastCommand: { type: string; count: number } | null;
 };
 
@@ -58,6 +84,25 @@ type VimAction =
   | { type: 'INCREMENT_COUNT'; digit: number }
   | { type: 'CLEAR_COUNT' }
   | { type: 'SET_PENDING_OPERATOR'; operator: 'g' | 'd' | 'c' | 'y' | null }
+  | { type: 'SET_PENDING_CHORD'; chord: 'ctrl+x' | null }
+  | { type: 'SET_PENDING_REPLACE'; pending: boolean }
+  | { type: 'SET_PENDING_INNER'; pending: boolean }
+  | {
+      type: 'SET_PENDING_FIND';
+      find: {
+        char: string;
+        direction: 'forward' | 'backward';
+        type: 'inclusive' | 'exclusive';
+      } | null;
+    }
+  | {
+      type: 'SET_LAST_FIND';
+      find: {
+        char: string;
+        direction: 'forward' | 'backward';
+        type: 'inclusive' | 'exclusive';
+      } | null;
+    }
   | {
       type: 'SET_LAST_COMMAND';
       command: { type: string; count: number } | null;
@@ -69,6 +114,11 @@ const initialVimState: VimState = {
   mode: 'NORMAL',
   count: 0,
   pendingOperator: null,
+  pendingChord: null,
+  pendingReplace: false,
+  pendingInner: false,
+  pendingFind: null,
+  lastFind: null,
   lastCommand: null,
 };
 
@@ -89,6 +139,21 @@ const vimReducer = (state: VimState, action: VimAction): VimState => {
 
     case 'SET_PENDING_OPERATOR':
       return { ...state, pendingOperator: action.operator };
+
+    case 'SET_PENDING_CHORD':
+      return { ...state, pendingChord: action.chord };
+
+    case 'SET_PENDING_REPLACE':
+      return { ...state, pendingReplace: action.pending };
+
+    case 'SET_PENDING_INNER':
+      return { ...state, pendingInner: action.pending };
+
+    case 'SET_PENDING_FIND':
+      return { ...state, pendingFind: action.find };
+
+    case 'SET_LAST_FIND':
+      return { ...state, lastFind: action.find };
 
     case 'SET_LAST_COMMAND':
       return { ...state, lastCommand: action.command };
@@ -400,6 +465,50 @@ export function useVim(buffer: TextBuffer, onSubmit?: (value: string) => void) {
         return false;
       }
 
+      // Handle pending replace (r + char)
+      if (state.pendingReplace) {
+        buffer.vimReplaceChar(normalizedKey.sequence);
+        dispatch({ type: 'SET_PENDING_REPLACE', pending: false });
+        dispatch({ type: 'CLEAR_COUNT' });
+        dispatch({
+          type: 'SET_LAST_COMMAND',
+          command: { type: 'r', count: 1 },
+        }); // Store 'r' as last command
+        return true; // Handled
+      }
+
+      // Handle pending find (f/F/t/T + char)
+      if (state.pendingFind) {
+        const { direction, type } = state.pendingFind;
+        buffer.vimFindChar(normalizedKey.sequence, direction, type);
+        dispatch({ type: 'SET_PENDING_FIND', find: null });
+        dispatch({
+          type: 'SET_LAST_FIND',
+          find: { char: normalizedKey.sequence, direction, type },
+        }); // Store last find
+        dispatch({ type: 'CLEAR_COUNT' });
+        return true; // Handled
+      }
+
+      // Handle Ctrl+x Chord (Priority over everything else)
+      if (state.pendingChord === 'ctrl+x') {
+        if (normalizedKey.ctrl && normalizedKey.name === 'e') {
+          void buffer.openInExternalEditor();
+          dispatch({ type: 'CLEAR_PENDING_STATES' });
+          return true; // Handled
+        }
+        // Fallback: Clear pending state and consume the key (swallow)
+        // to prevent accidental inputs when chord fails
+        dispatch({ type: 'CLEAR_PENDING_STATES' });
+        return true;
+      }
+
+      // Check for Ctrl+x to start chord
+      if (normalizedKey.ctrl && normalizedKey.name === 'x') {
+        dispatch({ type: 'SET_PENDING_CHORD', chord: 'ctrl+x' });
+        return true;
+      }
+
       // Handle INSERT mode
       if (state.mode === 'INSERT') {
         return handleInsertModeInput(normalizedKey);
@@ -520,6 +629,29 @@ export function useVim(buffer: TextBuffer, onSubmit?: (value: string) => void) {
           }
 
           case 'w': {
+            // Check for inner word operations (diw, ciw, yiw)
+            if (state.pendingInner) {
+              if (state.pendingOperator === 'd') {
+                buffer.vimDeleteInnerWord(repeatCount);
+                dispatch({ type: 'CLEAR_PENDING_STATES' });
+                dispatch({ type: 'CLEAR_COUNT' });
+                return true;
+              }
+              if (state.pendingOperator === 'c') {
+                buffer.vimChangeInnerWord(repeatCount);
+                updateMode('INSERT');
+                dispatch({ type: 'CLEAR_PENDING_STATES' });
+                dispatch({ type: 'CLEAR_COUNT' });
+                return true;
+              }
+              if (state.pendingOperator === 'y') {
+                buffer.vimYankInnerWord(repeatCount);
+                dispatch({ type: 'CLEAR_PENDING_STATES' });
+                dispatch({ type: 'CLEAR_COUNT' });
+                return true;
+              }
+            }
+
             // Check if this is part of a delete or change command (dw/cw)
             if (state.pendingOperator === 'd') {
               return handleOperatorMotion('d', 'w');
@@ -584,6 +716,11 @@ export function useVim(buffer: TextBuffer, onSubmit?: (value: string) => void) {
           }
 
           case 'i': {
+            if (state.pendingOperator) {
+              dispatch({ type: 'SET_PENDING_INNER', pending: true });
+              return true;
+            }
+
             // Enter INSERT mode at current position
             buffer.vimInsertAtCursor();
             updateMode('INSERT');
@@ -632,6 +769,12 @@ export function useVim(buffer: TextBuffer, onSubmit?: (value: string) => void) {
           case '^': {
             // Move to first non-whitespace character
             buffer.vimMoveToFirstNonWhitespace();
+            dispatch({ type: 'CLEAR_COUNT' });
+            return true;
+          }
+
+          case '%': {
+            buffer.vimMoveToMatchingPair();
             dispatch({ type: 'CLEAR_COUNT' });
             return true;
           }
@@ -779,26 +922,6 @@ export function useVim(buffer: TextBuffer, onSubmit?: (value: string) => void) {
             }
 
             if (state.pendingOperator === 'y') {
-              // 'yy' - yank line
-              // We need to get the current line text.
-              // buffer.lines[buffer.cursor[0]]
-              // We don't have direct access to lines here.
-              // We need a `vimYankLine` action?
-              // Or `vimYank` action that handles logic?
-              // Let's add `vimYankLine` to `vim-buffer-actions`?
-              // Or better, let's implement `vimYank` action to handle movement/objects similar to delete/change.
-
-              // For now, let's implement a simple `vim_yank_line` action in `vim-buffer-actions`.
-              // Wait, I implemented `vim_yank` taking text payload.
-              // That means I need to calculate text here.
-              // But I don't have access to text here.
-              // This suggests I should change `vim_yank` to be an action that calculates text in the reducer,
-              // OR `useVim` needs access to text.
-
-              // `useVim` takes `buffer`. `buffer` has `text` and `lines`.
-              // `buffer` object from `useTextBuffer` exposes `lines` and `text`?
-              // Yes! `const { lines, text } = buffer;`
-
               const currentLine = buffer.lines[buffer.cursor[0]] || '';
               buffer.vimYank(currentLine + '\n'); // Linewise yank includes newline
 
@@ -832,14 +955,55 @@ export function useVim(buffer: TextBuffer, onSubmit?: (value: string) => void) {
           }
 
           case 'r': {
-            // Redo with Ctrl+r
-            if (normalizedKey.ctrl) {
-              buffer.redo();
+            // Replace character (r)
+            dispatch({ type: 'SET_PENDING_REPLACE', pending: true });
+            dispatch({ type: 'CLEAR_COUNT' });
+            return true;
+          }
+
+          case 'f':
+          case 'F':
+          case 't':
+          case 'T': {
+            const findDirection =
+              normalizedKey.sequence === 'f' || normalizedKey.sequence === 't'
+                ? 'forward'
+                : 'backward';
+            const findType =
+              normalizedKey.sequence === 'f' || normalizedKey.sequence === 'F'
+                ? 'inclusive'
+                : 'exclusive';
+            dispatch({
+              type: 'SET_PENDING_FIND',
+              find: {
+                char: '', // This will be set by the next key
+                direction: findDirection,
+                type: findType,
+              },
+            });
+            dispatch({ type: 'CLEAR_COUNT' });
+            return true;
+          }
+
+          case ';': {
+            if (state.lastFind) {
+              const { char, direction, type } = state.lastFind;
+              buffer.vimFindChar(char, direction, type);
               dispatch({ type: 'CLEAR_COUNT' });
               return true;
             }
-            // Replace character (r)
-            // TODO: Implement replace char
+            return false; // No last find to repeat
+          }
+
+          case ',': {
+            if (state.lastFind) {
+              const { char, direction, type } = state.lastFind;
+              const newDirection =
+                direction === 'forward' ? 'backward' : 'forward';
+              buffer.vimFindChar(char, newDirection, type);
+              dispatch({ type: 'CLEAR_COUNT' });
+              return true;
+            }
             return false;
           }
 
@@ -922,6 +1086,11 @@ export function useVim(buffer: TextBuffer, onSubmit?: (value: string) => void) {
       state.mode,
       state.count,
       state.pendingOperator,
+      state.pendingChord,
+      state.pendingReplace,
+      state.pendingInner,
+      state.pendingFind,
+      state.lastFind,
       state.lastCommand,
       dispatch,
       getCurrentCount,
@@ -936,6 +1105,8 @@ export function useVim(buffer: TextBuffer, onSubmit?: (value: string) => void) {
   return {
     mode: state.mode,
     vimModeEnabled: vimEnabled,
+    lastCommand: state.lastCommand,
+    lastFind: state.lastFind,
     handleInput, // Expose the input handler for InputPrompt to use
   };
 }

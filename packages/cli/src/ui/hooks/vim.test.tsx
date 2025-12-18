@@ -174,6 +174,13 @@ describe('useVim hook', () => {
           cursorState.pos = [row, col - 1];
         }
       }),
+      openInExternalEditor: vi.fn(),
+      vimReplaceChar: vi.fn(),
+      vimFindChar: vi.fn(),
+      vimMoveToMatchingPair: vi.fn(),
+      vimDeleteInnerWord: vi.fn(),
+      vimChangeInnerWord: vi.fn(),
+      vimYankInnerWord: vi.fn(),
     };
   };
 
@@ -787,6 +794,363 @@ describe('useVim hook', () => {
       });
 
       expect(testBuffer.vimMoveWordForward).toHaveBeenCalledWith(3);
+    });
+  });
+
+  describe('External Editor Integration', () => {
+    it('should handle Ctrl+x followed by Ctrl+e to open external editor', () => {
+      const testBuffer = createMockBuffer('hello world', [0, 0]);
+      testBuffer.openInExternalEditor = vi.fn();
+      const { result } = renderVimHook(testBuffer);
+
+      // Press Ctrl+x
+      let handled: boolean | undefined;
+      act(() => {
+        handled = result.current.handleInput(
+          createKey({ name: 'x', ctrl: true }),
+        );
+      });
+      expect(handled).toBe(true);
+      expect(testBuffer.openInExternalEditor).not.toHaveBeenCalled();
+
+      // Press Ctrl+e
+      act(() => {
+        handled = result.current.handleInput(
+          createKey({ name: 'e', ctrl: true }),
+        );
+      });
+      expect(handled).toBe(true);
+      expect(testBuffer.openInExternalEditor).toHaveBeenCalled();
+    });
+
+    it('should not open external editor if Ctrl+x is followed by another key', () => {
+      const testBuffer = createMockBuffer('hello world', [0, 0]);
+      testBuffer.openInExternalEditor = vi.fn();
+      const { result } = renderVimHook(testBuffer);
+
+      // Press Ctrl+x
+      act(() => {
+        result.current.handleInput(createKey({ name: 'x', ctrl: true }));
+      });
+
+      // Press 'a' (should clear pending state and not open editor)
+      let handled: boolean | undefined;
+      act(() => {
+        handled = result.current.handleInput(createKey({ sequence: 'a' }));
+      });
+
+      expect(handled).toBe(true); // Consumed by logic as fallback behavior
+      expect(testBuffer.openInExternalEditor).not.toHaveBeenCalled();
+
+      // Next Ctrl+e should not trigger editor since state was cleared
+      act(() => {
+        result.current.handleInput(createKey({ name: 'e', ctrl: true }));
+      });
+      expect(testBuffer.openInExternalEditor).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Character Operations (r, f, t, ;, ,)', () => {
+    describe('r (replace character)', () => {
+      it('should replace the character under the cursor and remain in NORMAL mode', () => {
+        const testBuffer = createMockBuffer('hello world', [0, 1]); // cursor on 'e'
+        testBuffer.vimReplaceChar = vi.fn();
+        const { result } = renderVimHook(testBuffer);
+
+        // Press 'r'
+        act(() => {
+          result.current.handleInput(createKey({ sequence: 'r' }));
+        });
+
+        // Press 'X' (replacement character)
+        act(() => {
+          result.current.handleInput(createKey({ sequence: 'X' }));
+        });
+
+        expect(testBuffer.vimReplaceChar).toHaveBeenCalledWith('X');
+        expect(result.current.mode).toBe('NORMAL');
+      });
+
+      it("should store 'r' as the last command", () => {
+        const testBuffer = createMockBuffer('hello world', [0, 1]); // cursor on 'e'
+        testBuffer.vimReplaceChar = vi.fn();
+        const { result } = renderVimHook(testBuffer);
+
+        // Press 'r'
+        act(() => {
+          result.current.handleInput(createKey({ sequence: 'r' }));
+        });
+
+        // Press 'X' (replacement character)
+        act(() => {
+          result.current.handleInput(createKey({ sequence: 'X' }));
+        });
+
+        expect(result.current.lastCommand).toEqual({ type: 'r', count: 1 });
+      });
+    });
+
+    describe('f/F/t/T (find character)', () => {
+      it('should find character forward inclusive (f)', () => {
+        const testBuffer = createMockBuffer('hello world', [0, 0]); // cursor on 'h'
+        testBuffer.vimFindChar = vi.fn();
+        const { result } = renderVimHook(testBuffer);
+
+        // Press 'f'
+        act(() => {
+          result.current.handleInput(createKey({ sequence: 'f' }));
+        });
+        // Press 'o'
+        act(() => {
+          result.current.handleInput(createKey({ sequence: 'o' }));
+        });
+
+        expect(testBuffer.vimFindChar).toHaveBeenCalledWith(
+          'o',
+          'forward',
+          'inclusive',
+        );
+        expect(result.current.mode).toBe('NORMAL');
+      });
+
+      it('should find character backward inclusive (F)', () => {
+        const testBuffer = createMockBuffer('hello world', [0, 6]); // cursor on 'w'
+        testBuffer.vimFindChar = vi.fn();
+        const { result } = renderVimHook(testBuffer);
+
+        // Press 'F'
+        act(() => {
+          result.current.handleInput(createKey({ sequence: 'F' }));
+        });
+        // Press 'e'
+        act(() => {
+          result.current.handleInput(createKey({ sequence: 'e' }));
+        });
+
+        expect(testBuffer.vimFindChar).toHaveBeenCalledWith(
+          'e',
+          'backward',
+          'inclusive',
+        );
+        expect(result.current.mode).toBe('NORMAL');
+      });
+
+      it('should find character forward exclusive (t)', () => {
+        const testBuffer = createMockBuffer('hello world', [0, 0]); // cursor on 'h'
+        testBuffer.vimFindChar = vi.fn();
+        const { result } = renderVimHook(testBuffer);
+
+        // Press 't'
+        act(() => {
+          result.current.handleInput(createKey({ sequence: 't' }));
+        });
+        // Press 'o'
+        act(() => {
+          result.current.handleInput(createKey({ sequence: 'o' }));
+        });
+
+        expect(testBuffer.vimFindChar).toHaveBeenCalledWith(
+          'o',
+          'forward',
+          'exclusive',
+        );
+        expect(result.current.mode).toBe('NORMAL');
+      });
+
+      it('should find character backward exclusive (T)', () => {
+        const testBuffer = createMockBuffer('hello world', [0, 6]); // cursor on 'w'
+        testBuffer.vimFindChar = vi.fn();
+        const { result } = renderVimHook(testBuffer);
+
+        // Press 'T'
+        act(() => {
+          result.current.handleInput(createKey({ sequence: 'T' }));
+        });
+        // Press 'e'
+        act(() => {
+          result.current.handleInput(createKey({ sequence: 'e' }));
+        });
+
+        expect(testBuffer.vimFindChar).toHaveBeenCalledWith(
+          'e',
+          'backward',
+          'exclusive',
+        );
+        expect(result.current.mode).toBe('NORMAL');
+      });
+
+      it('should store last find for repetition', () => {
+        const testBuffer = createMockBuffer('hello world', [0, 0]); // cursor on 'h'
+        testBuffer.vimFindChar = vi.fn();
+        const { result } = renderVimHook(testBuffer);
+
+        // Press 'f'
+        act(() => {
+          result.current.handleInput(createKey({ sequence: 'f' }));
+        });
+        // Press 'o'
+        act(() => {
+          result.current.handleInput(createKey({ sequence: 'o' }));
+        });
+
+        expect(result.current.lastFind).toEqual({
+          char: 'o',
+          direction: 'forward',
+          type: 'inclusive',
+        });
+      });
+    });
+
+    describe('; and , (repeat find)', () => {
+      it('should repeat last find forward with ;', () => {
+        const testBuffer = createMockBuffer('ohoho', [0, 0]); // cursor on first 'o'
+        testBuffer.vimFindChar = vi.fn();
+        const { result } = renderVimHook(testBuffer);
+
+        // First find: f then h
+        act(() => {
+          result.current.handleInput(createKey({ sequence: 'f' }));
+        });
+        act(() => {
+          result.current.handleInput(createKey({ sequence: 'h' }));
+        });
+
+        vi.clearAllMocks();
+
+        // Repeat find: ;
+        act(() => {
+          result.current.handleInput(createKey({ sequence: ';' }));
+        });
+
+        expect(testBuffer.vimFindChar).toHaveBeenCalledWith(
+          'h',
+          'forward',
+          'inclusive',
+        );
+      });
+
+      it('should repeat last find backward with ,', () => {
+        const testBuffer = createMockBuffer('ohoho', [0, 4]); // cursor on last 'o'
+        testBuffer.vimFindChar = vi.fn();
+        const { result } = renderVimHook(testBuffer);
+
+        // First find: F then h
+        act(() => {
+          result.current.handleInput(createKey({ sequence: 'F' }));
+        });
+        act(() => {
+          result.current.handleInput(createKey({ sequence: 'h' }));
+        });
+
+        vi.clearAllMocks();
+
+        // Repeat find backward: ,
+        act(() => {
+          result.current.handleInput(createKey({ sequence: ',' }));
+        });
+
+        expect(testBuffer.vimFindChar).toHaveBeenCalledWith(
+          'h',
+          'forward',
+          'inclusive',
+        ); // Flipped direction for comma
+      });
+
+      it('should not repeat find if no last find is set', () => {
+        const testBuffer = createMockBuffer('hello', [0, 0]);
+        testBuffer.vimFindChar = vi.fn();
+        const { result } = renderVimHook(testBuffer);
+
+        // Press ; without a prior find
+        act(() => {
+          result.current.handleInput(createKey({ sequence: ';' }));
+        });
+
+        expect(testBuffer.vimFindChar).not.toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe('Text Objects & Advanced Movement', () => {
+    describe('% (matching pair)', () => {
+      it('should move to matching pair', () => {
+        const testBuffer = createMockBuffer('func(args)', [0, 4]); // cursor on '('
+        testBuffer.vimMoveToMatchingPair = vi.fn();
+        const { result } = renderVimHook(testBuffer);
+
+        act(() => {
+          result.current.handleInput(createKey({ sequence: '%' }));
+        });
+
+        expect(testBuffer.vimMoveToMatchingPair).toHaveBeenCalled();
+      });
+    });
+
+    describe('Inner Word Operations (iw)', () => {
+      it('should handle diw (delete inner word)', () => {
+        const testBuffer = createMockBuffer('hello world test', [0, 7]); // cursor on 'o' in world
+        testBuffer.vimDeleteInnerWord = vi.fn();
+        const { result } = renderVimHook(testBuffer);
+
+        // Press 'd'
+        act(() => {
+          result.current.handleInput(createKey({ sequence: 'd' }));
+        });
+        // Press 'i'
+        act(() => {
+          result.current.handleInput(createKey({ sequence: 'i' }));
+        });
+        // Press 'w'
+        act(() => {
+          result.current.handleInput(createKey({ sequence: 'w' }));
+        });
+
+        expect(testBuffer.vimDeleteInnerWord).toHaveBeenCalledWith(1);
+      });
+
+      it('should handle ciw (change inner word)', () => {
+        const testBuffer = createMockBuffer('hello world test', [0, 7]); // cursor on 'o' in world
+        testBuffer.vimChangeInnerWord = vi.fn();
+        const { result } = renderVimHook(testBuffer);
+
+        // Press 'c'
+        act(() => {
+          result.current.handleInput(createKey({ sequence: 'c' }));
+        });
+        // Press 'i'
+        act(() => {
+          result.current.handleInput(createKey({ sequence: 'i' }));
+        });
+        // Press 'w'
+        act(() => {
+          result.current.handleInput(createKey({ sequence: 'w' }));
+        });
+
+        expect(testBuffer.vimChangeInnerWord).toHaveBeenCalledWith(1);
+        expect(result.current.mode).toBe('INSERT');
+      });
+
+      it('should handle yiw (yank inner word)', () => {
+        const testBuffer = createMockBuffer('hello world test', [0, 7]); // cursor on 'o' in world
+        testBuffer.vimYankInnerWord = vi.fn();
+        const { result } = renderVimHook(testBuffer);
+
+        // Press 'y'
+        act(() => {
+          result.current.handleInput(createKey({ sequence: 'y' }));
+        });
+        // Press 'i'
+        act(() => {
+          result.current.handleInput(createKey({ sequence: 'i' }));
+        });
+        // Press 'w'
+        act(() => {
+          result.current.handleInput(createKey({ sequence: 'w' }));
+        });
+
+        expect(testBuffer.vimYankInnerWord).toHaveBeenCalledWith(1);
+        expect(result.current.mode).toBe('NORMAL');
+      });
     });
   });
 

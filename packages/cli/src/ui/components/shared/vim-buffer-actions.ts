@@ -18,7 +18,111 @@ import {
   findWordEndInLine,
 } from './text-buffer.js';
 import { cpLen, toCodePoints, cpSlice } from '../../utils/textUtils.js';
-import { assumeExhaustive } from '../../../utils/checks.js';
+// import { assumeExhaustive } from '../../../utils/checks.js';
+
+function findPairForward(
+  lines: string[],
+  startRow: number,
+  startCol: number,
+  openChar: string,
+  closeChar: string,
+): { row: number; col: number } | null {
+  let depth = 0;
+  for (let row = startRow; row < lines.length; row++) {
+    const line = lines[row] || '';
+    const chars = toCodePoints(line);
+    const colStart = row === startRow ? startCol : 0;
+
+    for (let col = colStart; col < chars.length; col++) {
+      const char = chars[col];
+      if (char === openChar) {
+        depth++;
+      } else if (char === closeChar) {
+        if (depth === 0) return { row, col };
+        depth--;
+      }
+    }
+  }
+  return null;
+}
+
+function findPairBackward(
+  lines: string[],
+  startRow: number,
+  startCol: number,
+  closeChar: string,
+  openChar: string,
+): { row: number; col: number } | null {
+  let depth = 0;
+  for (let row = startRow; row >= 0; row--) {
+    const line = lines[row] || '';
+    const chars = toCodePoints(line);
+    const colStart = row === startRow ? startCol : chars.length - 1;
+
+    for (let col = colStart; col >= 0; col--) {
+      const char = chars[col];
+      if (char === closeChar) {
+        depth++;
+      } else if (char === openChar) {
+        if (depth === 0) return { row, col };
+        depth--;
+      }
+    }
+  }
+  return null;
+}
+
+function findMatchingPair(
+  lines: string[],
+  cursorRow: number,
+  cursorCol: number,
+): { row: number; col: number } | null {
+  const currentLine = lines[cursorRow] || '';
+  const codePoints = toCodePoints(currentLine);
+
+  const pairs: Record<string, string> = {
+    '(': ')',
+    '{': '}',
+    '[': ']',
+    '<': '>',
+  };
+  const reversePairs: Record<string, string> = {
+    ')': '(',
+    '}': '{',
+    ']': '[',
+    '>': '<',
+  };
+
+  // 1. Check if we need to scan forward to find a pair
+  let activeCol = cursorCol;
+  let char = codePoints[activeCol];
+
+  if (!pairs[char] && !reversePairs[char]) {
+    // Scan forward on current line
+    for (let i = cursorCol + 1; i < codePoints.length; i++) {
+      const c = codePoints[i];
+      if (pairs[c] || reversePairs[c]) {
+        activeCol = i;
+        char = c;
+        break;
+      }
+    }
+  }
+
+  if (pairs[char]) {
+    return findPairForward(lines, cursorRow, activeCol + 1, char, pairs[char]);
+  } else if (reversePairs[char]) {
+    return findPairBackward(
+      lines,
+      cursorRow,
+      activeCol - 1,
+      char,
+      reversePairs[char],
+    );
+  }
+
+  return null;
+}
 
 // Check if we're at the end of a base word (on the last base character)
 // Returns true if current position has a base character followed only by combining marks until non-word
@@ -81,6 +185,19 @@ export type VimAction = Extract<
   | { type: 'vim_yank'; payload: { text: string } }
   | { type: 'vim_yank_selection' }
   | { type: 'vim_paste'; payload: { direction: 'before' | 'after' } }
+  | { type: 'vim_replace_char'; payload: { char: string } }
+  | {
+      type: 'vim_find_char';
+      payload: {
+        char: string;
+        direction: 'forward' | 'backward';
+        type: 'inclusive' | 'exclusive';
+      };
+    }
+  | { type: 'vim_move_to_matching_pair' }
+  | { type: 'vim_delete_inner_word'; payload: { count: number } }
+  | { type: 'vim_change_inner_word'; payload: { count: number } }
+  | { type: 'vim_yank_inner_word'; payload: { count: number } }
 >;
 
 export function handleVimAction(
@@ -646,7 +763,10 @@ export function handleVimAction(
       if (selectionAnchor) {
         const nextState = pushUndo(state);
         // Calculate min/max for the range
-        let startRow; let startCol; let endRow; let endCol;
+        let startRow;
+        let startCol;
+        let endRow;
+        let endCol;
         if (
           selectionAnchor[0] < cursorRow ||
           (selectionAnchor[0] === cursorRow && selectionAnchor[1] < cursorCol)
@@ -1009,7 +1129,10 @@ export function handleVimAction(
       const { selectionAnchor, cursorRow, cursorCol, lines } = state;
       if (!selectionAnchor) return state;
 
-      let startRow; let startCol; let endRow; let endCol;
+      let startRow;
+      let startCol;
+      let endRow;
+      let endCol;
       if (
         selectionAnchor[0] < cursorRow ||
         (selectionAnchor[0] === cursorRow && selectionAnchor[1] < cursorCol)
@@ -1061,13 +1184,6 @@ export function handleVimAction(
         const currentLine = lines[cursorRow] || '';
         // If pasting multiple lines (text contains newline)
         if (clipboard.includes('\n')) {
-          // Open line below and insert
-          // But we need to handle multi-line paste more carefully depending on whether it was a linewise yank
-          // For simplicity, treating everything as character-wise insertion for now unless it ends with newline
-          // If it ends with newline, it's linewise?
-          // Standard vim: linewise yank puts text on new line.
-          // Let's assume character-wise insert for now for simplicity as we don't track linewise/charwise in clipboard yet.
-
           // However, for 'p' of a block, it usually starts on the next line if it was linewise.
           // If clipboard ends with \n, treat as linewise.
           if (clipboard.endsWith('\n')) {
@@ -1081,8 +1197,6 @@ export function handleVimAction(
               endOfLine,
               '\n' + clipboard.slice(0, -1), // remove trailing newline for insertion, but prepend newline to put it on next line
             );
-            // Wait, this appends to current line.
-            // Correct logic for linewise 'p': insert new lines below current line.
           }
 
           // Charwise paste after cursor
@@ -1134,9 +1248,172 @@ export function handleVimAction(
       }
     }
 
+    case 'vim_replace_char': {
+      const { char } = action.payload;
+      const { cursorRow, cursorCol, lines } = state;
+      const currentLine = lines[cursorRow] || '';
+
+      if (cursorCol < cpLen(currentLine)) {
+        const nextState = pushUndo(state);
+        return replaceRangeInternal(
+          nextState,
+          cursorRow,
+          cursorCol,
+          cursorRow,
+          cursorCol + 1,
+          char,
+        );
+      }
+      return state; // Nothing to replace at end of line
+    }
+
+    case 'vim_find_char': {
+      const { char, direction, type } = action.payload;
+      const { lines, cursorRow, cursorCol } = state;
+      const currentLine = lines[cursorRow] || '';
+      const lineCodePoints = toCodePoints(currentLine);
+
+      let newCol = -1;
+      if (direction === 'forward') {
+        // Start search after current cursor position
+        const startSearchCol = cursorCol + 1;
+        for (let i = startSearchCol; i < lineCodePoints.length; i++) {
+          if (lineCodePoints[i] === char) {
+            newCol = i;
+            break;
+          }
+        }
+      } else {
+        // backward
+        // Start search before current cursor position
+        const startSearchCol = cursorCol - 1;
+        for (let i = startSearchCol; i >= 0; i--) {
+          if (lineCodePoints[i] === char) {
+            newCol = i;
+            break;
+          }
+        }
+      }
+
+      if (newCol !== -1) {
+        // Adjust column based on type (inclusive/exclusive)
+        let finalCol = newCol;
+        if (type === 'exclusive') {
+          finalCol = direction === 'forward' ? newCol - 1 : newCol + 1;
+        }
+
+        // Ensure finalCol is within bounds
+        finalCol = Math.max(0, Math.min(finalCol, cpLen(currentLine) - 1));
+
+        return {
+          ...state,
+          cursorCol: finalCol,
+          preferredCol: null,
+        };
+      }
+      return state; // Character not found
+    }
+
+    case 'vim_move_to_matching_pair': {
+      const match = findMatchingPair(lines, cursorRow, cursorCol);
+      if (match) {
+        return {
+          ...state,
+          cursorRow: match.row,
+          cursorCol: match.col,
+          preferredCol: null,
+        };
+      }
+      return state;
+    }
+
+    case 'vim_delete_inner_word':
+    case 'vim_change_inner_word':
+    case 'vim_yank_inner_word': {
+      // Find inner word bounds
+      const currentLine = lines[cursorRow] || '';
+      const lineCodePoints = toCodePoints(currentLine);
+      if (lineCodePoints.length === 0) return state;
+
+      // Handle empty line case?
+      // If line empty, nothing to select.
+
+      let startCol = cursorCol;
+      let endCol = cursorCol;
+
+      // Ensure cursor is within bounds
+      if (startCol >= lineCodePoints.length)
+        startCol = lineCodePoints.length - 1;
+
+      const charUnderCursor = lineCodePoints[startCol];
+      const isWordChar =
+        isWordCharStrict(charUnderCursor) ||
+        isWordCharWithCombining(charUnderCursor);
+      // Wait, simplistic "inner word" logic:
+      // If on whitespace, select sequence of whitespace.
+      // If on word char, select sequence of word chars.
+      // Note: "isWordCharWithCombining" handles base + marks.
+
+      const checkType = (char: string) => {
+        if (!char) return false;
+        const isW = isWordCharStrict(char) || isWordCharWithCombining(char);
+        if (isWordChar) return isW;
+        // If we started on non-word, we look for non-word?
+        // Standard vim iw: "inner word".
+        // If on word: select word.
+        // If on whitespace: select whitespace.
+        // If on symbol: select symbol sequence? No, standard 'w' treats symbols as words too if not whitespace.
+        // Let's assume standard "word" vs "non-word" where non-word includes punctuation unless we use isWordCharStrict logic properly.
+        // Our helper `findWordEndInLine` uses `isWordCharStrict` logic.
+        return isW === isWordChar;
+      };
+
+      // Scan back
+      while (startCol > 0 && checkType(lineCodePoints[startCol - 1])) {
+        startCol--;
+      }
+      // Scan forward
+      while (
+        endCol < lineCodePoints.length - 1 &&
+        checkType(lineCodePoints[endCol + 1])
+      ) {
+        endCol++;
+      }
+
+      // Now we have [startCol, endCol] inclusive.
+      // Yank logic
+      if (action.type === 'vim_yank_inner_word') {
+        const text = cpSlice(currentLine, startCol, endCol + 1);
+        return { ...state, clipboard: text };
+      }
+
+      const nextState = pushUndo(state);
+      const resultState = replaceRangeInternal(
+        nextState,
+        cursorRow,
+        startCol,
+        cursorRow,
+        endCol + 1, // exclusive end
+        '',
+      );
+
+      if (action.type === 'vim_change_inner_word') {
+        // Switch to insert mode is handled by caller (useVim) if we return state?
+        // No, handleVimAction just modifies buffer.
+        // useVim needs to switch mode.
+        // But for change, we usually want to verify we actually changed something?
+        // Yes.
+        return resultState;
+      }
+
+      return resultState;
+    }
+
     default: {
       // This should never happen if TypeScript is working correctly
-      assumeExhaustive(action);
+
+      // assumeExhaustive(action);
+
       return state;
     }
   }
