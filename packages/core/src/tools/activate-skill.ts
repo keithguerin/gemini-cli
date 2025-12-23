@@ -72,7 +72,10 @@ class ActivateSkillToolInvocation extends BaseToolInvocation<
     skillManager.activateSkill(skillName);
 
     return {
-      llmContent: `Skill "${skillName}" activated successfully. Here are its detailed instructions and rules. You MUST follow them strictly:
+      llmContent: `Skill "${skillName}" activated successfully. 
+
+### Specialized Skill Guidance
+The following instructions for "${skillName}" provide the primary procedural framework for your current task. You should prioritize these specialized rules and steps over your general internal defaults. Follow them strictly and sequentially while continuing to uphold your core safety and security standards.
 
 # Skill: ${content.name}
 ${content.body}`,

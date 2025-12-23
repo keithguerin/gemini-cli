@@ -91,8 +91,9 @@ describe('Core System Prompt (prompts.ts)', () => {
 
     expect(prompt).toContain('# Available Agent Skills');
     expect(prompt).toContain(
-      "To activate a skill and follow its detailed instructions, you MUST first call the `activate_skill` tool with the skill's name.",
+      "To activate a skill and receive its detailed instructions, you MUST first call the `activate_skill` tool with the skill's name. You MUST then follow those detailed instructions strictly.",
     );
+    expect(prompt).toContain('Skill Guidance');
     expect(prompt).toContain('```json');
     expect(prompt).toContain('"name": "test-skill"');
     expect(prompt).toContain('"description": "A test skill description"');

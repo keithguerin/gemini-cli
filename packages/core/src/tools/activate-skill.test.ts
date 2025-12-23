@@ -53,6 +53,7 @@ describe('ActivateSkillTool', () => {
     expect(result.llmContent).toContain(
       'Skill "test-skill" activated successfully',
     );
+    expect(result.llmContent).toContain('Specialized Skill Guidance');
     expect(result.llmContent).toContain('Skill instructions content.');
     expect(result.returnDisplay).toBe('Skill "test-skill" activated.');
   });
