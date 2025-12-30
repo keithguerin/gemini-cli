@@ -6,7 +6,8 @@
 
 import type { BrowserManager } from './browserManager.js';
 import { debugLogger } from '../../utils/debugLogger.js';
-import type { Page } from 'playwright';
+
+type Page = import('playwright').Page;
 
 export interface ToolResult {
   output?: string;

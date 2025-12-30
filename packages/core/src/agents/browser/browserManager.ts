@@ -11,7 +11,9 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { Storage } from '../../config/storage.js';
 import type { McpClient } from '../../tools/mcp-client.js';
-import { type Browser, type Page } from 'playwright';
+
+type Browser = import('playwright').Browser;
+type Page = import('playwright').Page;
 
 import { getFreePort } from '../../utils/net.js';
 
