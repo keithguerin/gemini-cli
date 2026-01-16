@@ -10,7 +10,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createExtension } from '../test-utils/createExtension.js';
 import { ExtensionManager } from './extension-manager.js';
 import { themeManager } from '../ui/themes/theme-manager.js';
-import { GEMINI_DIR } from '@google/gemini-cli-core';
+import { type CustomTheme, GEMINI_DIR } from '@google/gemini-cli-core';
 import { type MergedSettings } from './settings.js';
 
 vi.mock('../ui/themes/theme-manager.js', () => ({
@@ -52,13 +52,13 @@ describe('ExtensionManager theme loading', () => {
   it('should register themes from an extension', async () => {
     createExtension({
       extensionsDir: userExtensionsDir,
-      name: 'test-extension-with-themes',
+      name: 'my-theme-extension',
       themes: [
         {
-          name: 'My Test Theme',
+          name: 'My-Awesome-Theme',
           type: 'custom',
           text: {
-            primary: '#ffffff',
+            primary: '#FF00FF',
           },
         },
       ],
@@ -68,12 +68,12 @@ describe('ExtensionManager theme loading', () => {
 
     expect(themeManager.registerExtensionThemes).toHaveBeenCalledWith([
       {
-        name: 'My Test Theme',
+        name: 'My-Awesome-Theme',
         type: 'custom',
         text: {
-          primary: '#ffffff',
+          primary: '#FF00FF',
         },
       },
-    ]);
+    ] as CustomTheme[]);
   });
 });

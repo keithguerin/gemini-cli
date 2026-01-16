@@ -40,7 +40,10 @@ interface ThemeDialogProps {
   terminalWidth: number;
 }
 
-import { resolveColor } from '../themes/color-utils.js';
+import {
+  getThemeTypeFromBackgroundColor,
+  resolveColor,
+} from '../themes/color-utils.js';
 
 function generateThemeItem(
   name: string,
@@ -104,6 +107,12 @@ export function ThemeDialog({
         'Default Light',
       );
     },
+  );
+
+  const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+  const terminalThemeType = getThemeTypeFromBackgroundColor(
+    terminalBackgroundColor,
   );
 
   // Generate theme items
