@@ -13,6 +13,11 @@ import { themeManager } from '../ui/themes/theme-manager.js';
 import { type CustomTheme, GEMINI_DIR } from '@google/gemini-cli-core';
 import { type MergedSettings } from './settings.js';
 
+const tempHomeDir = fs.mkdtempSync(
+  path.join(fs.realpathSync('/tmp'), 'gemini-cli-test-'),
+);
+process.env['GEMINI_CLI_HOME'] = tempHomeDir;
+
 vi.mock('../ui/themes/theme-manager.js', () => ({
   themeManager: {
     registerExtensionThemes: vi.fn(),
@@ -21,14 +26,9 @@ vi.mock('../ui/themes/theme-manager.js', () => ({
 
 describe('ExtensionManager theme loading', () => {
   let extensionManager: ExtensionManager;
-  let tempHomeDir: string;
   let userExtensionsDir: string;
 
   beforeEach(() => {
-    tempHomeDir = fs.mkdtempSync(
-      path.join(fs.realpathSync('/tmp'), 'gemini-cli-test-'),
-    );
-    process.env['GEMINI_USER_HOME'] = tempHomeDir;
     userExtensionsDir = path.join(tempHomeDir, GEMINI_DIR, 'extensions');
     fs.mkdirSync(userExtensionsDir, { recursive: true });
 
