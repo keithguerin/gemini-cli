@@ -10,7 +10,7 @@
 export enum Command {
   // Basic Controls
   RETURN = 'basic.confirm',
-  ESCAPE = 'basic.cancel',
+  ESCAPE = 'basic.escape',
   QUIT = 'basic.quit',
   EXIT = 'basic.exit',
 
@@ -89,10 +89,10 @@ export enum Command {
 export interface KeyBinding {
   /** The key name (e.g., 'a', 'return', 'tab', 'escape') */
   key: string;
-  /** Control key requirement: true=must be pressed, false=must not be pressed, undefined=ignore */
-  ctrl?: boolean;
   /** Shift key requirement: true=must be pressed, false=must not be pressed, undefined=ignore */
   shift?: boolean;
+  /** Control key requirement: true=must be pressed, false=must not be pressed, undefined=ignore */
+  ctrl?: boolean;
   /** Command/meta key requirement: true=must be pressed, false=must not be pressed, undefined=ignore */
   command?: boolean;
 }
@@ -110,134 +110,226 @@ export type KeyBindingConfig = {
  */
 export const defaultKeyBindings: KeyBindingConfig = {
   // Basic Controls
-  [Command.RETURN]: [{ key: 'return' }],
-  [Command.ESCAPE]: [{ key: 'escape' }],
-  [Command.QUIT]: [{ key: 'c', ctrl: true }],
-  [Command.EXIT]: [{ key: 'd', ctrl: true }],
+  [Command.RETURN]: [
+    { key: 'return', shift: false, ctrl: false, command: false },
+  ],
+  [Command.ESCAPE]: [
+    { key: 'escape', shift: false, ctrl: false, command: false },
+    { key: 'escape', shift: false, ctrl: true, command: false },
+    { key: 'escape', shift: false, ctrl: false, command: true },
+  ],
+  [Command.QUIT]: [{ key: 'c', shift: false, ctrl: true, command: false }],
+  [Command.EXIT]: [{ key: 'd', shift: false, ctrl: true, command: false }],
 
   // Cursor Movement
-  [Command.HOME]: [{ key: 'a', ctrl: true }, { key: 'home' }],
-  [Command.END]: [{ key: 'e', ctrl: true }, { key: 'end' }],
-  [Command.MOVE_UP]: [{ key: 'up', ctrl: false, command: false }],
-  [Command.MOVE_DOWN]: [{ key: 'down', ctrl: false, command: false }],
+  [Command.HOME]: [
+    { key: 'a', shift: false, ctrl: true, command: false },
+    { key: 'home' },
+  ],
+  [Command.END]: [
+    { key: 'e', shift: false, ctrl: true, command: false },
+    { key: 'end' },
+  ],
+  [Command.MOVE_UP]: [{ key: 'up', shift: false, ctrl: false, command: false }],
+  [Command.MOVE_DOWN]: [
+    { key: 'down', shift: false, ctrl: false, command: false },
+  ],
   [Command.MOVE_LEFT]: [
-    { key: 'left', ctrl: false, command: false },
-    { key: 'b', ctrl: true },
+    { key: 'left', shift: false, ctrl: false, command: false },
+    { key: 'b', shift: false, ctrl: true, command: false },
   ],
   [Command.MOVE_RIGHT]: [
-    { key: 'right', ctrl: false, command: false },
-    { key: 'f', ctrl: true },
+    { key: 'right', shift: false, ctrl: false, command: false },
+    { key: 'f', shift: false, ctrl: true, command: false },
   ],
   [Command.MOVE_WORD_LEFT]: [
-    { key: 'left', ctrl: true },
-    { key: 'left', command: true },
-    { key: 'b', command: true },
+    { key: 'left', shift: false, ctrl: true, command: false },
+    { key: 'left', shift: false, ctrl: false, command: true },
+    { key: 'b', shift: false, ctrl: false, command: true },
   ],
   [Command.MOVE_WORD_RIGHT]: [
-    { key: 'right', ctrl: true },
-    { key: 'right', command: true },
-    { key: 'f', command: true },
+    { key: 'right', shift: false, ctrl: true, command: false },
+    { key: 'right', shift: false, ctrl: false, command: true },
+    { key: 'f', shift: false, ctrl: false, command: true },
   ],
 
   // Editing
-  [Command.KILL_LINE_RIGHT]: [{ key: 'k', ctrl: true }],
-  [Command.KILL_LINE_LEFT]: [{ key: 'u', ctrl: true }],
-  [Command.CLEAR_INPUT]: [{ key: 'c', ctrl: true }],
+  [Command.KILL_LINE_RIGHT]: [
+    { key: 'k', shift: false, ctrl: true, command: false },
+  ],
+  [Command.KILL_LINE_LEFT]: [
+    { key: 'u', shift: false, ctrl: true, command: false },
+  ],
+  [Command.CLEAR_INPUT]: [
+    { key: 'c', shift: false, ctrl: true, command: false },
+  ],
   // Added command (meta/alt/option) for mac compatibility
   [Command.DELETE_WORD_BACKWARD]: [
-    { key: 'backspace', ctrl: true },
-    { key: 'backspace', command: true },
-    { key: 'w', ctrl: true },
+    { key: 'backspace', shift: false, ctrl: true, command: false },
+    { key: 'backspace', shift: false, ctrl: false, command: true },
+    { key: 'w', shift: false, ctrl: true, command: false },
   ],
   [Command.DELETE_WORD_FORWARD]: [
-    { key: 'delete', ctrl: true },
-    { key: 'delete', command: true },
+    { key: 'delete', shift: false, ctrl: true, command: false },
+    { key: 'delete', shift: false, ctrl: false, command: true },
   ],
-  [Command.DELETE_CHAR_LEFT]: [{ key: 'backspace' }, { key: 'h', ctrl: true }],
-  [Command.DELETE_CHAR_RIGHT]: [{ key: 'delete' }, { key: 'd', ctrl: true }],
-  [Command.UNDO]: [{ key: 'z', ctrl: true, shift: false }],
-  [Command.REDO]: [{ key: 'z', ctrl: true, shift: true }],
+  [Command.DELETE_CHAR_LEFT]: [
+    { key: 'backspace' },
+    { key: 'h', shift: false, ctrl: true, command: false },
+  ],
+  [Command.DELETE_CHAR_RIGHT]: [
+    { key: 'delete' },
+    { key: 'd', shift: false, ctrl: true, command: false },
+  ],
+  [Command.UNDO]: [{ key: 'z', shift: false, ctrl: true, command: false }],
+  [Command.REDO]: [{ key: 'z', shift: true, ctrl: true, command: false }],
 
   // Scrolling
-  [Command.SCROLL_UP]: [{ key: 'up', shift: true }],
-  [Command.SCROLL_DOWN]: [{ key: 'down', shift: true }],
-  [Command.SCROLL_HOME]: [{ key: 'home' }],
-  [Command.SCROLL_END]: [{ key: 'end' }],
-  [Command.PAGE_UP]: [{ key: 'pageup' }],
-  [Command.PAGE_DOWN]: [{ key: 'pagedown' }],
+  [Command.SCROLL_UP]: [
+    { key: 'up', shift: true, ctrl: false, command: false },
+  ],
+  [Command.SCROLL_DOWN]: [
+    { key: 'down', shift: true, ctrl: false, command: false },
+  ],
+  [Command.SCROLL_HOME]: [
+    { key: 'home', shift: false, ctrl: false, command: false },
+  ],
+  [Command.SCROLL_END]: [
+    { key: 'end', shift: false, ctrl: false, command: false },
+  ],
+  [Command.PAGE_UP]: [
+    { key: 'pageup', shift: false, ctrl: false, command: false },
+    { key: 'pageup', shift: true, ctrl: false, command: false },
+    { key: 'pageup', shift: false, ctrl: true, command: false },
+  ],
+  [Command.PAGE_DOWN]: [
+    { key: 'pagedown', shift: false, ctrl: false, command: false },
+    { key: 'pagedown', shift: true, ctrl: false, command: false },
+    { key: 'pagedown', shift: false, ctrl: true, command: false },
+  ],
 
   // History & Search
-  [Command.HISTORY_UP]: [{ key: 'p', ctrl: true, shift: false }],
-  [Command.HISTORY_DOWN]: [{ key: 'n', ctrl: true, shift: false }],
-  [Command.REVERSE_SEARCH]: [{ key: 'r', ctrl: true }],
+  [Command.HISTORY_UP]: [
+    { key: 'p', shift: false, ctrl: true, command: false },
+  ],
+  [Command.HISTORY_DOWN]: [
+    { key: 'n', shift: false, ctrl: true, command: false },
+  ],
+  [Command.REVERSE_SEARCH]: [
+    { key: 'r', shift: false, ctrl: true, command: false },
+  ],
   // Note: original logic ONLY checked ctrl=false, ignored meta/shift/paste
-  [Command.SUBMIT_REVERSE_SEARCH]: [{ key: 'return', ctrl: false }],
-  [Command.ACCEPT_SUGGESTION_REVERSE_SEARCH]: [{ key: 'tab' }],
+  [Command.SUBMIT_REVERSE_SEARCH]: [
+    { key: 'return', shift: false, ctrl: false, command: false },
+  ],
+  [Command.ACCEPT_SUGGESTION_REVERSE_SEARCH]: [
+    { key: 'tab', shift: false, ctrl: false, command: false },
+    { key: 'tab', shift: false, ctrl: true, command: false },
+  ],
 
   // Navigation
-  [Command.NAVIGATION_UP]: [{ key: 'up', shift: false }],
-  [Command.NAVIGATION_DOWN]: [{ key: 'down', shift: false }],
+  [Command.NAVIGATION_UP]: [
+    { key: 'up', shift: false, ctrl: false, command: false },
+    { key: 'up', shift: true, ctrl: false, command: false },
+    { key: 'up', shift: false, ctrl: true, command: false },
+  ],
+  [Command.NAVIGATION_DOWN]: [
+    { key: 'down', shift: false, ctrl: false, command: false },
+    { key: 'down', shift: true, ctrl: false, command: false },
+    { key: 'down', shift: false, ctrl: true, command: false },
+  ],
   // Navigation shortcuts appropriate for dialogs where we do not need to accept
   // text input.
   [Command.DIALOG_NAVIGATION_UP]: [
-    { key: 'up', shift: false },
-    { key: 'k', shift: false },
+    { key: 'up', shift: false, ctrl: false, command: false },
+    { key: 'k', shift: false, ctrl: false, command: false },
   ],
   [Command.DIALOG_NAVIGATION_DOWN]: [
-    { key: 'down', shift: false },
-    { key: 'j', shift: false },
+    { key: 'down', shift: false, ctrl: false, command: false },
+    { key: 'j', shift: false, ctrl: false, command: false },
   ],
 
   // Suggestions & Completions
-  [Command.ACCEPT_SUGGESTION]: [{ key: 'tab' }, { key: 'return', ctrl: false }],
+  [Command.ACCEPT_SUGGESTION]: [
+    { key: 'tab', shift: false, ctrl: false, command: false },
+    { key: 'return', shift: false, ctrl: false, command: false },
+  ],
   // Completion navigation (arrow or Ctrl+P/N)
   [Command.COMPLETION_UP]: [
-    { key: 'up', shift: false },
-    { key: 'p', ctrl: true, shift: false },
+    { key: 'up', shift: false, ctrl: false, command: false },
+    { key: 'p', shift: false, ctrl: true, command: false },
   ],
   [Command.COMPLETION_DOWN]: [
-    { key: 'down', shift: false },
-    { key: 'n', ctrl: true, shift: false },
+    { key: 'down', shift: false, ctrl: false, command: false },
+    { key: 'n', shift: false, ctrl: true, command: false },
   ],
-  [Command.EXPAND_SUGGESTION]: [{ key: 'right' }],
-  [Command.COLLAPSE_SUGGESTION]: [{ key: 'left' }],
+  [Command.EXPAND_SUGGESTION]: [
+    { key: 'right', shift: false, ctrl: false, command: false },
+  ],
+  [Command.COLLAPSE_SUGGESTION]: [
+    { key: 'left', shift: false, ctrl: false, command: false },
+  ],
 
   // Text Input
   // Must also exclude shift to allow shift+enter for newline
   [Command.SUBMIT]: [
     {
       key: 'return',
+      shift: false,
       ctrl: false,
       command: false,
-      shift: false,
     },
   ],
   // Split into multiple data-driven bindings
   // Now also includes shift+enter for multi-line input
   [Command.NEWLINE]: [
-    { key: 'return', ctrl: true },
-    { key: 'return', command: true },
-    { key: 'return', shift: true },
-    { key: 'j', ctrl: true },
+    { key: 'return', shift: false, ctrl: true, command: false },
+    { key: 'return', shift: false, ctrl: false, command: true },
+    { key: 'return', shift: true, ctrl: false, command: false },
+    { key: 'j', shift: false, ctrl: true, command: false },
   ],
-  [Command.OPEN_EXTERNAL_EDITOR]: [{ key: 'x', ctrl: true }],
+  [Command.OPEN_EXTERNAL_EDITOR]: [
+    { key: 'x', shift: false, ctrl: true, command: false },
+  ],
   [Command.PASTE_CLIPBOARD]: [
-    { key: 'v', ctrl: true },
-    { key: 'v', command: true },
+    { key: 'v', shift: false, ctrl: true, command: false },
+    { key: 'v', shift: false, ctrl: false, command: true },
   ],
 
   // App Controls
-  [Command.SHOW_ERROR_DETAILS]: [{ key: 'f12' }],
-  [Command.SHOW_FULL_TODOS]: [{ key: 't', ctrl: true }],
-  [Command.SHOW_IDE_CONTEXT_DETAIL]: [{ key: 'g', ctrl: true }],
-  [Command.TOGGLE_MARKDOWN]: [{ key: 'm', command: true }],
-  [Command.TOGGLE_COPY_MODE]: [{ key: 's', ctrl: true }],
-  [Command.TOGGLE_YOLO]: [{ key: 'y', ctrl: true }],
-  [Command.TOGGLE_AUTO_EDIT]: [{ key: 'tab', shift: true }],
-  [Command.SHOW_MORE_LINES]: [{ key: 's', ctrl: true }],
-  [Command.FOCUS_SHELL_INPUT]: [{ key: 'tab', shift: false }],
-  [Command.UNFOCUS_SHELL_INPUT]: [{ key: 'tab' }],
-  [Command.CLEAR_SCREEN]: [{ key: 'l', ctrl: true }],
+  [Command.SHOW_ERROR_DETAILS]: [
+    { key: 'f12', shift: false, ctrl: false, command: false },
+  ],
+  [Command.SHOW_FULL_TODOS]: [
+    { key: 't', shift: false, ctrl: true, command: false },
+  ],
+  [Command.SHOW_IDE_CONTEXT_DETAIL]: [
+    { key: 'g', shift: false, ctrl: true, command: false },
+  ],
+  [Command.TOGGLE_MARKDOWN]: [
+    { key: 'm', shift: false, ctrl: false, command: true },
+  ],
+  [Command.TOGGLE_COPY_MODE]: [
+    { key: 's', shift: false, ctrl: true, command: false },
+  ],
+  [Command.TOGGLE_YOLO]: [
+    { key: 'y', shift: false, ctrl: true, command: false },
+  ],
+  [Command.TOGGLE_AUTO_EDIT]: [
+    { key: 'tab', shift: true, ctrl: false, command: false },
+  ],
+  [Command.SHOW_MORE_LINES]: [
+    { key: 's', shift: false, ctrl: true, command: false },
+  ],
+  [Command.FOCUS_SHELL_INPUT]: [
+    { key: 'tab', shift: false, ctrl: false, command: false },
+  ],
+  [Command.UNFOCUS_SHELL_INPUT]: [
+    { key: 'tab', shift: false, ctrl: false, command: false },
+  ],
+  [Command.CLEAR_SCREEN]: [
+    { key: 'l', shift: false, ctrl: true, command: false },
+  ],
 };
 
 interface CommandCategory {

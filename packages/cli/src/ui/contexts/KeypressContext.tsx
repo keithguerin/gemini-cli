@@ -667,7 +667,6 @@ export function KeypressProvider({
     processor = bufferBackslashEnter(processor);
     processor = bufferPaste(processor);
     let dataListener = createDataListener(processor);
-
     if (debugKeystrokeLogging) {
       const old = dataListener;
       dataListener = (data: string) => {
