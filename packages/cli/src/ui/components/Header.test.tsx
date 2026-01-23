@@ -138,6 +138,7 @@ describe('<Header />', () => {
         comment: '',
         symbol: '',
         dark: '',
+        selection: '',
         gradient: undefined,
       },
       status: {

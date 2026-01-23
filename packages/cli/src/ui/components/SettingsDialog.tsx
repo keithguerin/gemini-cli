@@ -1018,7 +1018,7 @@ export function SettingsDialog({
                     <Box minWidth={2} flexShrink={0}>
                       <Text
                         color={
-                          isActive ? theme.status.success : theme.text.secondary
+                          isActive ? theme.ui.selection : theme.text.secondary
                         }
                       >
                         {isActive ? '●' : ''}
@@ -1037,7 +1037,7 @@ export function SettingsDialog({
                       >
                         <Text
                           color={
-                            isActive ? theme.status.success : theme.text.primary
+                            isActive ? theme.ui.selection : theme.text.primary
                           }
                         >
                           {item.label}
@@ -1057,7 +1057,7 @@ export function SettingsDialog({
                         <Text
                           color={
                             isActive
-                              ? theme.status.success
+                              ? theme.ui.selection
                               : shouldBeGreyedOut
                                 ? theme.text.secondary
                                 : theme.text.primary

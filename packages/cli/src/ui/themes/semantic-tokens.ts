@@ -29,6 +29,7 @@ export interface SemanticColors {
     comment: string;
     symbol: string;
     dark: string;
+    selection: string;
     gradient: string[] | undefined;
   };
   status: {
@@ -61,6 +62,7 @@ export const lightSemanticColors: SemanticColors = {
     comment: lightTheme.Comment,
     symbol: lightTheme.Gray,
     dark: lightTheme.DarkGray,
+    selection: lightTheme.AccentGreen,
     gradient: lightTheme.GradientColors,
   },
   status: {
@@ -93,6 +95,7 @@ export const darkSemanticColors: SemanticColors = {
     comment: darkTheme.Comment,
     symbol: darkTheme.Gray,
     dark: darkTheme.DarkGray,
+    selection: darkTheme.AccentGreen,
     gradient: darkTheme.GradientColors,
   },
   status: {
@@ -125,6 +128,7 @@ export const ansiSemanticColors: SemanticColors = {
     comment: ansiTheme.Comment,
     symbol: ansiTheme.Gray,
     dark: ansiTheme.DarkGray,
+    selection: ansiTheme.AccentGreen,
     gradient: ansiTheme.GradientColors,
   },
   status: {

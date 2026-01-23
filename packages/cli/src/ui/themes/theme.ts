@@ -58,6 +58,7 @@ export interface CustomTheme {
   ui?: {
     comment?: string;
     symbol?: string;
+    selection?: string;
     gradient?: string[];
   };
   status?: {
@@ -188,6 +189,7 @@ export class Theme {
         comment: this.colors.Gray,
         symbol: this.colors.AccentCyan,
         dark: this.colors.DarkGray,
+        selection: this.colors.AccentGreen,
         gradient: this.colors.GradientColors,
       },
       status: {
@@ -453,6 +455,7 @@ export function createCustomTheme(customTheme: CustomTheme): Theme {
       comment: customTheme.ui?.comment ?? colors.Comment,
       symbol: customTheme.ui?.symbol ?? colors.Gray,
       dark: colors.DarkGray,
+      selection: customTheme.ui?.selection ?? colors.AccentGreen,
       gradient: customTheme.ui?.gradient ?? colors.GradientColors,
     },
     status: {

@@ -84,7 +84,7 @@ export function SuggestionsDisplay({
         const originalIndex = startIndex + index;
         const isActive = originalIndex === activeIndex;
         const isExpanded = originalIndex === expandedIndex;
-        const textColor = isActive ? theme.text.accent : theme.text.secondary;
+        const textColor = isActive ? theme.ui.selection : theme.text.secondary;
         const isLong = suggestion.value.length >= MAX_WIDTH;
         const labelElement = (
           <ExpandableText
